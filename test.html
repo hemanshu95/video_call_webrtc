@@ -22,6 +22,7 @@ async function playVideoFromCamera() {
         localStream = stream;
         setLocalTracks();
         const videoElement = document.querySelector('video#localVideo');
+        videoElement.muted = true;
         videoElement.srcObject = stream;
     } catch(error) {
         console.error('Error opening video camera.', error);
