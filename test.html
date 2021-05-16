@@ -17,7 +17,7 @@ Receiver name <input type="text" id="receiver" name="receiver">
 var localStream = null;
 async function playVideoFromCamera() {
     try {
-        const constraints = {'video': true, 'audio': false};
+        const constraints = {'video': true, 'audio': true};
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
         localStream = stream;
         setLocalTracks();
@@ -78,7 +78,7 @@ peerConnection.addEventListener('icecandidate', event => {
 
 async function call(){
     console.log(peerConnection);
-    const offer = await peerConnection.createOffer({ offerToReceiveAudio : false,
+    const offer = await peerConnection.createOffer({ offerToReceiveAudio : true,
         offerToReceiveVideo : true});
     await peerConnection.setLocalDescription(offer);
     //signalingChannel.send({'offer': offer});
