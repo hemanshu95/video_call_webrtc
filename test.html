@@ -1,0 +1,187 @@
+<html>
+<head><script src="https://code.jquery.com/jquery-1.10.2.js"></script></head>
+<body>
+
+<h1>My First Heading</h1>
+<p>My first paragraph.</p>
+My Name <input type="text" id="sender" name="sender">
+<button onclick="register()">Register</button>
+Receiver name <input type="text" id="receiver" name="receiver">
+<button onclick="call()">call</button>
+
+<p id="msgs"></p>
+<video id="localVideo" autoplay playsinline controls="false"/></video>
+<video id="remoteVideo" autoplay playsinline controls="false"/></video>
+
+<script>
+var localStream = null;
+async function playVideoFromCamera() {
+    try {
+        const constraints = {'video': true, 'audio': false};
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        localStream = stream;
+        setLocalTracks();
+        const videoElement = document.querySelector('video#localVideo');
+        videoElement.srcObject = stream;
+    } catch(error) {
+        console.error('Error opening video camera.', error);
+    }
+}
+
+const MSG_TYPES = {
+    TEXT : "text",
+    CALL_OFFER : "call_offer",
+    CALL_ANSWER : "call_answer",
+    NEW_ICE_CANDIDATE : "new_ice_candidate"
+}
+function sendMsg(msg, type){
+    var data = {};
+    data.sender = sender;
+    data.receiver = document.getElementById('receiver').value;
+    data.msg = msg;
+    data.type = type;
+    console.log(data);
+    $.ajax({
+        type: 'POST',
+        data: JSON.stringify(data),
+        contentType: 'application/json',
+        url: 'http://192.168.1.20:3000/sendMsg',                       
+        success: function(data) {
+            console.log('success');
+            console.log(JSON.stringify(data));
+        }
+    });
+
+}
+const configuration = {
+    configuration : {
+        offerToReceiveAudio : true,
+        offerToReceiveVideo : true
+    },
+    'iceServers': [{'urls': 'stun:stun.l.google.com:19302'}]
+}
+const peerConnection = new RTCPeerConnection(configuration);
+cand = null;
+
+peerConnection.onicecandidate = (evt) => {
+    console.log(evt);
+    console.log("onicecandidate");
+}
+peerConnection.addEventListener('icecandidate', event => {
+    console.log("Helo");
+    console.log(event);
+    if (event.candidate) {
+        sendMsg(event.candidate, MSG_TYPES.NEW_ICE_CANDIDATE);
+    }
+});
+
+async function call(){
+    console.log(peerConnection);
+    const offer = await peerConnection.createOffer({ offerToReceiveAudio : false,
+        offerToReceiveVideo : true});
+    await peerConnection.setLocalDescription(offer);
+    //signalingChannel.send({'offer': offer});
+    sendMsg(offer, MSG_TYPES.CALL_OFFER);
+    sendMsg("Calling", MSG_TYPES.TEXT);
+	
+}
+var sender = null;
+function register(){
+    sender = document.getElementById('sender').value;
+    console.log("Registered sender " + sender);
+}
+
+function handleTextMsg(payload){
+    var msg = payload.sender + "(" + payload.type + ")" + " : " + payload.msg;
+    console.log("Received msg : " + msg);
+    document.getElementById('msgs').innerHTML = document.getElementById('msgs').innerHTML + "<br>" + msg;
+}
+async function handleCallOfferMsg(payload){
+    var msg = payload.sender + "(" + payload.type + ")" + " : " + payload.msg;
+    console.log("Received msg : " + msg);
+    document.getElementById('msgs').innerHTML = document.getElementById('msgs').innerHTML + "<br>" + msg;
+    
+    peerConnection.setRemoteDescription(new RTCSessionDescription(payload.msg));
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+    document.getElementById('receiver').value = payload.sender;
+    sendMsg(answer, MSG_TYPES.CALL_ANSWER);
+}
+async function handleCallAnswerMsg(payload){
+    var msg = payload.sender + "(" + payload.type + ")" + " : " + payload.msg;
+    console.log("Received msg : " + msg);
+    document.getElementById('msgs').innerHTML = document.getElementById('msgs').innerHTML + "<br>" + msg;
+    const remoteDesc = new RTCSessionDescription(payload.msg);
+    await peerConnection.setRemoteDescription(remoteDesc);
+}
+
+async function handleNewIceCandidateMsg(payload){
+    var msg = payload.sender + "(" + payload.type + ")" + " : " + payload.msg;
+    console.log("Received msg : " + msg);
+    document.getElementById('msgs').innerHTML = document.getElementById('msgs').innerHTML + "<br>" + msg;
+    await peerConnection.addIceCandidate(payload.msg);
+}
+
+
+function handleMsg(payload){
+    console.log(payload);
+    switch (payload.type) {
+        case MSG_TYPES.TEXT:
+            handleTextMsg(payload);
+            break;
+        case MSG_TYPES.CALL_OFFER:
+            handleCallOfferMsg(payload);
+            break;
+        case MSG_TYPES.CALL_ANSWER:
+            handleCallAnswerMsg(payload);
+            break;
+        case MSG_TYPES.NEW_ICE_CANDIDATE:
+            handleNewIceCandidateMsg(payload);
+            break;    
+        default : console.log(payload);    
+    }
+}
+var y = null;
+function getMsg(){
+    if(sender==null)
+    {
+        console.log("Not registered");
+        return;
+    }    
+    var data = {};
+    data.sender = sender;
+    $.ajax({
+        type: 'POST',
+        data: JSON.stringify(data),
+        contentType: 'application/json',
+        url: 'http://192.168.1.20:3000/getMsg',                        
+        success: function(data) {
+            if(data.length>0){
+                data.map(handleMsg);
+            }
+            else 
+                console.log("No msg received for " + sender);
+        }
+    });
+}
+function setLocalTracks(){
+    localStream.getTracks().forEach(track => {
+        peerConnection.addTrack(track, localStream);
+    });
+}
+
+setInterval(getMsg, 1000);
+const remoteStream = new MediaStream();
+const remoteVideo = document.querySelector('#remoteVideo');
+remoteVideo.srcObject = remoteStream;
+peerConnection.addEventListener('track', async (event) => {
+    console.log("Received track");
+    console.log(event);
+    console.log(remoteStream);
+    remoteStream.addTrack(event.track, remoteStream);
+});
+playVideoFromCamera();
+
+</script>
+</body>
+</html>
