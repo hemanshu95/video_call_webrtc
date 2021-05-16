@@ -181,7 +181,7 @@ peerConnection.addEventListener('track', async (event) => {
     console.log("Received track");
     console.log(event);
     console.log(remoteStream);
-    tracks.append(event);
+    tracks.push(event);
     remoteStream.addTrack(event.track, remoteStream);
 });
 playVideoFromCamera();
