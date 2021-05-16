@@ -46,7 +46,7 @@ function sendMsg(msg, type){
         type: 'POST',
         data: JSON.stringify(data),
         contentType: 'application/json',
-        url: `http://${HOST}/sendMsg`,                       
+        url: `https://${HOST}/sendMsg`,                       
         success: function(data) {
             console.log('success');
             console.log(JSON.stringify(data));
@@ -155,7 +155,7 @@ function getMsg(){
         type: 'POST',
         data: JSON.stringify(data),
         contentType: 'application/json',
-        url: `http://${HOST}/getMsg`,                        
+        url: `https://${HOST}/getMsg`,                        
         success: function(data) {
             if(data.length>0){
                 data.map(handleMsg);
