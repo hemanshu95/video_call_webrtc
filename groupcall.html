@@ -10,10 +10,20 @@ Receiver name <input type="text" id="receiver" name="receiver">
 <button onclick="call()">call</button>
 
 <p id="msgs"></p>
+<div id = "videos">
 <video id="localVideo" autoplay playsinline controls="false"/></video>
 <video id="remoteVideo" autoplay playsinline controls="false"/></video>
-
+</div>
 <script>
+
+function createVideoElement(srcObject){
+    var videoElement = document.createElement("video");
+    videoElement.autoplay = true;
+    videoElement.playsInline = true;
+    videoElement.controls = true;
+    videoElement.srcObject = stream;
+    document.getElementById("videos").appendChild(videoElement);
+}    
 var localStream = null;
 async function playVideoFromCamera() {
     try {
@@ -176,12 +186,10 @@ setInterval(getMsg, 1000);
 const remoteStream = new MediaStream();
 const remoteVideo = document.querySelector('#remoteVideo');
 remoteVideo.srcObject = remoteStream;
-tracks = [];
 peerConnection.addEventListener('track', async (event) => {
     console.log("Received track");
     console.log(event);
     console.log(remoteStream);
-    tracks.append(event);
     remoteStream.addTrack(event.track, remoteStream);
 });
 playVideoFromCamera();

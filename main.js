@@ -23,6 +23,10 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname+'/test.html'));
 })
 
+app.get('/group', (req, res) => {
+  res.sendFile(path.join(__dirname+'/groupcall.html'));
+})
+
 app.post('/sendMsg', jsonParser,(req, res) =>{
 
 	console.log('Got body:', req.body);
