@@ -34,6 +34,7 @@ const MSG_TYPES = {
     CALL_ANSWER : "call_answer",
     NEW_ICE_CANDIDATE : "new_ice_candidate"
 }
+const HOST = "call-io.herokuapp.com" 
 function sendMsg(msg, type){
     var data = {};
     data.sender = sender;
@@ -45,7 +46,7 @@ function sendMsg(msg, type){
         type: 'POST',
         data: JSON.stringify(data),
         contentType: 'application/json',
-        url: 'http://192.168.1.20:3000/sendMsg',                       
+        url: `http://${HOST}/sendMsg`,                       
         success: function(data) {
             console.log('success');
             console.log(JSON.stringify(data));
@@ -154,7 +155,7 @@ function getMsg(){
         type: 'POST',
         data: JSON.stringify(data),
         contentType: 'application/json',
-        url: 'http://192.168.1.20:3000/getMsg',                        
+        url: `http://${HOST}/getMsg`,                        
         success: function(data) {
             if(data.length>0){
                 data.map(handleMsg);
