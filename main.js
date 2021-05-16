@@ -14,12 +14,12 @@ const host = "0.0.0.0"
 // });
 var toSend = {};
 
-app.get('/', (req, res) => {
+app.get('/test', (req, res) => {
   res.send('Hello World!')
 })
 
 
-app.get('/test', (req, res) => {
+app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname+'/test.html'));
 })
 
