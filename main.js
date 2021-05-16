@@ -53,5 +53,5 @@ app.post('/getMsg', jsonParser,(req, res) =>{
 
 
 app.listen(PORT, () => {
-  console.log(`Example app listening at http://${host}:${port}`)
+  console.log(`Example app listening at http://${host}:${PORT}`)
 })
