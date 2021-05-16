@@ -4,7 +4,7 @@ const path = require('path')
 const app = express()
 const port = 3000
 const jsonParser = bodyParser.json()
-const host = "call-io.herokuapp.com"
+const host = "0.0.0.0"
 
 //app.use(express.bodyParser());
 
