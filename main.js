@@ -2,7 +2,7 @@ const express = require('express')
 const bodyParser = require('body-parser')
 const path = require('path')
 const app = express()
-const port = 3000
+const PORT = process.env.PORT || 3000
 const jsonParser = bodyParser.json()
 const host = "0.0.0.0"
 
