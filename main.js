@@ -4,6 +4,7 @@ const path = require('path')
 const app = express()
 const port = 3000
 const jsonParser = bodyParser.json()
+const host = "call-io.herokuapp.com"
 
 //app.use(express.bodyParser());
 
@@ -51,6 +52,6 @@ app.post('/getMsg', jsonParser,(req, res) =>{
 })
 
 
-app.listen(port, '0.0.0.0', () => {
-  console.log(`Example app listening at http://localhost:${port}`)
+app.listen(port, host, () => {
+  console.log(`Example app listening at http://${host}:${port}`)
 })
