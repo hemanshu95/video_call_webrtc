@@ -42,7 +42,7 @@ function sendMsg(msg, type){
     data.receiver = document.getElementById('receiver').value;
     data.msg = msg;
     data.type = type;
-    console.log(data);
+    console.log("Sending msg",data);
     $.ajax({
         type: 'POST',
         data: JSON.stringify(data),
