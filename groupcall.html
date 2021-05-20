@@ -2,21 +2,20 @@
 <head><script src="https://code.jquery.com/jquery-1.10.2.js"></script></head>
 <body>
 
-<h1>My First Heading</h1>
-<p>My first paragraph.</p>
+<h1>Group Call</h1>
+<div id="register_form" hidden>
+<p>Register</p>    
 My Name <input type="text" id="sender" name="sender">
-<button onclick="register()">Register</button>
-Receiver name <input type="text" id="receiver" name="receiver">
-<button onclick="call()">call</button>
+<button onclick="setUserCookie()">Register</button>
+</div>
 
+<div id = "videos" hidden>
 <p id="msgs"></p>
-<div id = "videos">
 <video id="localVideo" autoplay playsinline controls="false"/></video>
-<video id="remoteVideo" autoplay playsinline controls="false"/></video>
 </div>
 <script>
 
-function createVideoElement(srcObject){
+function createVideoElement(stream){
     var videoElement = document.createElement("video");
     videoElement.autoplay = true;
     videoElement.playsInline = true;
@@ -30,7 +29,6 @@ async function playVideoFromCamera() {
         const constraints = {'video': true, 'audio': true};
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
         localStream = stream;
-        setLocalTracks();
         const videoElement = document.querySelector('video#localVideo');
         videoElement.muted = true;
         videoElement.srcObject = stream;
@@ -43,13 +41,15 @@ const MSG_TYPES = {
     TEXT : "text",
     CALL_OFFER : "call_offer",
     CALL_ANSWER : "call_answer",
-    NEW_ICE_CANDIDATE : "new_ice_candidate"
+    NEW_ICE_CANDIDATE : "new_ice_candidate",
+    NEW_CALLER : "new_caller"
 }
-const HOST = "call-io.herokuapp.com" 
-function sendMsg(msg, type){
+//const HOST = "https://call-io.herokuapp.com" 
+const HOST = "http://localhost:3000" 
+function sendMsg(msg, type, receiver){
     var data = {};
     data.sender = sender;
-    data.receiver = document.getElementById('receiver').value;
+    data.receiver = receiver; //document.getElementById('receiver').value;
     data.msg = msg;
     data.type = type;
     console.log(data);
@@ -57,7 +57,7 @@ function sendMsg(msg, type){
         type: 'POST',
         data: JSON.stringify(data),
         contentType: 'application/json',
-        url: `https://${HOST}/sendMsg`,                       
+        url: `/sendMsg`,                       
         success: function(data) {
             console.log('success');
             console.log(JSON.stringify(data));
@@ -72,35 +72,51 @@ const configuration = {
     },
     'iceServers': [{'urls': 'stun:stun.l.google.com:19302'}]
 }
-const peerConnection = new RTCPeerConnection(configuration);
+//const peerConnection1 = new RTCPeerConnection(configuration);
 cand = null;
+var peerConnections = {};
 
-peerConnection.onicecandidate = (evt) => {
-    console.log(evt);
-    console.log("onicecandidate");
-}
-peerConnection.addEventListener('icecandidate', event => {
-    console.log("Helo");
-    console.log(event);
-    if (event.candidate) {
-        sendMsg(event.candidate, MSG_TYPES.NEW_ICE_CANDIDATE);
-    }
-});
 
-async function call(){
-    console.log(peerConnection);
+async function call(id){
+    var peerConnection = new RTCPeerConnection(configuration);
+    peerConnections[id] = peerConnection;
+    console.log("peerConnection", peerConnection);
     const offer = await peerConnection.createOffer({ offerToReceiveAudio : true,
         offerToReceiveVideo : true});
     await peerConnection.setLocalDescription(offer);
     //signalingChannel.send({'offer': offer});
-    sendMsg(offer, MSG_TYPES.CALL_OFFER);
-    sendMsg("Calling", MSG_TYPES.TEXT);
-	
+    console.log("Calling "+ id);
+    sendMsg(offer, MSG_TYPES.CALL_OFFER, id);
+    sendMsg("Calling", MSG_TYPES.TEXT, id);
 }
 var sender = null;
-function register(){
-    sender = document.getElementById('sender').value;
-    console.log("Registered sender " + sender);
+function register(userName){
+    if(userName==null)
+    {
+        console.log("Not registered");
+        return;
+    }    
+    var groupId = window.location.pathname.replace(/.*\/group\//gi, "").replace(/\/.*/gi, "");
+    var data = {};
+    data.userName = userName;
+    $.ajax({
+        type: 'POST',
+        data: JSON.stringify(data),
+        contentType: 'application/json',
+        url: `/group/${groupId}/register`,                        
+        success: function(data) {
+            sender = data.userId;
+            console.log("Registered senderName after registering " + sender);
+            document.getElementById("register_form").hidden = true;
+            document.getElementById("videos").hidden = false;
+        }
+    });
+}
+function setUserCookie(){
+    var senderName = document.getElementById('sender').value;
+    document.cookie = "userName=" + senderName;
+    console.log("Registered senderName " + sender);
+    register(senderName);
 }
 
 function handleTextMsg(payload){
@@ -112,18 +128,42 @@ async function handleCallOfferMsg(payload){
     var msg = payload.sender + "(" + payload.type + ")" + " : " + payload.msg;
     console.log("Received msg : " + msg);
     document.getElementById('msgs').innerHTML = document.getElementById('msgs').innerHTML + "<br>" + msg;
-    
+    var peerConnection = new RTCPeerConnection(configuration);
+    peerConnections[payload.sender] = peerConnection;
+    console.log("peerConnection", peerConnection);
     peerConnection.setRemoteDescription(new RTCSessionDescription(payload.msg));
+    peerConnection.onicecandidate = (evt) => {
+        console.log(evt);
+        console.log("onicecandidate");
+    }
+    peerConnection.addEventListener('icecandidate', event => {
+        console.log("Helo");
+        console.log(event);
+        if (event.candidate) {
+            sendMsg(event.candidate, MSG_TYPES.NEW_ICE_CANDIDATE, payload.sender);
+        }
+    });
+    localStream.getTracks().forEach(track => {
+        peerConnection.addTrack(track, localStream);
+    });
+    peerConnection.addEventListener('track', async (event) => {
+        console.log("Received track");
+        console.log(event);
+        console.log(remoteStream);
+        remoteStream.addTrack(event.track, remoteStream);
+    });
     const answer = await peerConnection.createAnswer();
     await peerConnection.setLocalDescription(answer);
-    document.getElementById('receiver').value = payload.sender;
-    sendMsg(answer, MSG_TYPES.CALL_ANSWER);
+    console.log("Got call from " + payload.sender);
+    sendMsg(answer, MSG_TYPES.CALL_ANSWER, payload.sender);
 }
 async function handleCallAnswerMsg(payload){
     var msg = payload.sender + "(" + payload.type + ")" + " : " + payload.msg;
     console.log("Received msg : " + msg);
     document.getElementById('msgs').innerHTML = document.getElementById('msgs').innerHTML + "<br>" + msg;
     const remoteDesc = new RTCSessionDescription(payload.msg);
+    var peerConnection = peerConnections[payload.sender];
+    console.log("peerConnection", peerConnection);
     await peerConnection.setRemoteDescription(remoteDesc);
 }
 
@@ -131,7 +171,16 @@ async function handleNewIceCandidateMsg(payload){
     var msg = payload.sender + "(" + payload.type + ")" + " : " + payload.msg;
     console.log("Received msg : " + msg);
     document.getElementById('msgs').innerHTML = document.getElementById('msgs').innerHTML + "<br>" + msg;
+    var peerConnection = peerConnections[payload.sender];
+    console.log("peerConnection", peerConnection);
     await peerConnection.addIceCandidate(payload.msg);
+}
+
+async function handleNewCallerMsg(payload){
+    var msg = payload.sender + "(" + payload.type + ")" + " : " + payload.msg;
+    console.log("Received msg : " + msg);
+    document.getElementById('msgs').innerHTML = document.getElementById('msgs').innerHTML + "<br>" + msg;
+    await addNewUser(payload.msg);
 }
 
 
@@ -149,7 +198,10 @@ function handleMsg(payload){
             break;
         case MSG_TYPES.NEW_ICE_CANDIDATE:
             handleNewIceCandidateMsg(payload);
-            break;    
+            break;
+        case MSG_TYPES.NEW_CALLER:
+            handleNewCallerMsg(payload);    
+        case MSG_TYPES.        
         default : console.log(payload);    
     }
 }
@@ -166,7 +218,7 @@ function getMsg(){
         type: 'POST',
         data: JSON.stringify(data),
         contentType: 'application/json',
-        url: `https://${HOST}/getMsg`,                        
+        url: `/getMsg`,                        
         success: function(data) {
             if(data.length>0){
                 data.map(handleMsg);
@@ -176,24 +228,70 @@ function getMsg(){
         }
     });
 }
-function setLocalTracks(){
+
+setInterval(getMsg, 10000);
+
+// const remoteVideo = document.querySelector('#remoteVideo');
+// remoteVideo.srcObject = remoteStream;
+
+playVideoFromCamera();
+
+
+async function addNewUser(id){
+    var peerConnection = new RTCPeerConnection(configuration);
+    peerConnections[id] = peerConnection;
+    console.log("peerConnection", peerConnection);
+    var remoteStream = new MediaStream();
+    console.log("remoteStream");
+    console.log(remoteStream);
+    createVideoElement(remoteStream);
+    await call(id);
+    peerConnection.onicecandidate = (evt) => {
+        console.log(evt);
+        console.log("onicecandidate");
+    }
+    peerConnection.addEventListener('icecandidate', event => {
+        console.log("Helo");
+        console.log(event);
+        if (event.candidate) {
+            sendMsg(event.candidate, MSG_TYPES.NEW_ICE_CANDIDATE, id);
+        }
+    });
     localStream.getTracks().forEach(track => {
         peerConnection.addTrack(track, localStream);
     });
+    peerConnection.addEventListener('track', async (event) => {
+        console.log("Received track");
+        console.log(event);
+        console.log(remoteStream);
+        remoteStream.addTrack(event.track, remoteStream);
+    });
 }
 
-setInterval(getMsg, 1000);
-const remoteStream = new MediaStream();
-const remoteVideo = document.querySelector('#remoteVideo');
-remoteVideo.srcObject = remoteStream;
-peerConnection.addEventListener('track', async (event) => {
-    console.log("Received track");
-    console.log(event);
-    console.log(remoteStream);
-    remoteStream.addTrack(event.track, remoteStream);
-});
-playVideoFromCamera();
+function getCookie(cname) {
+  var name = cname + "=";
+  var ca = document.cookie.split(';');
+  for(var i = 0; i < ca.length; i++) {
+    var c = ca[i];
+    while (c.charAt(0) == ' ') {
+      c = c.substring(1);
+    }
+    if (c.indexOf(name) == 0) {
+      return c.substring(name.length, c.length);
+    }
+  }
+  return "";
+}
 
+function initialise(){
+    var usernameCookie = getCookie("userName");
+    console.log("usernameCookie => " + usernameCookie);
+    if(usernameCookie)
+        register(usernameCookie);
+    else
+        document.getElementById("register_form").hidden = false;
+}
+initialise();
 </script>
 </body>
 </html>
