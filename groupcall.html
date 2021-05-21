@@ -15,7 +15,7 @@ My Name <input type="text" id="sender" name="sender">
 </div>
 <script>
 
-function createPeerConnection(id, remoteStream){
+function createPeerConnection(id){
     var peerConnection = new RTCPeerConnection(configuration);
     peerConnection.onicecandidate = (evt) => {
         console.log(evt);
@@ -35,23 +35,45 @@ function createPeerConnection(id, remoteStream){
     var remoteStream = new MediaStream();
     console.log("remoteStream");
     console.log(remoteStream);
-    createVideoElement(remoteStream);
+    createVideoElement(id, remoteStream);
     peerConnection.addEventListener('track', async (event) => {
         console.log("Received track");
         console.log(event);
         console.log(remoteStream);
         remoteStream.addTrack(event.track, remoteStream);
     });
-    peerConnection.addEventListener('iceconnectionstatechange',  event => {
-        console.log('ice state change');
-        console.log(event);
-    });
+    function checkAndRemoveConnection(){
+        if(peerConnection.connectionState=="failed"){
+            document.getElementById("rvideo_"+id).remove();
+            delete peerConnections[id];
+            return false;
+        }
+        setTimeout(checkAndRemoveConnection, 5000);
+        return true;
+    }
+    checkAndRemoveConnection();
+    // peerConnection.addEventListener('iceconnectionstatechange',  event => {
+    //     console.log('ice state change');
+    //     console.log(event);
+        
+    //     setInterval(function(){ console.log(event.currentTarget.connectionState);
+    //     console.log(event.target.connectionState);
+    //     console.log(event.srcElement.connectionState);
+    //     console.log(peerConnection.connectionState);
+    //     console.log(document.getElementById("rvideo_"+id));
+    //     if(event.currentTarget.connectionState=="failed"){
+    //         document.getElementById("rvideo_"+id).remove();
+    //         delete peerConnections[id];
+    //     } }, 3000);
+        
+    // });
     peerConnections[id] = peerConnection;
 }
 
 
-function createVideoElement(stream){
+function createVideoElement(id, stream){
     var videoElement = document.createElement("video");
+    videoElement.id = "rvideo_" + id;
     videoElement.autoplay = true;
     videoElement.playsInline = true;
     videoElement.controls = true;
@@ -247,9 +269,6 @@ function getMsg(){
 }
 
 setInterval(getMsg, 1000);
-
-// const remoteVideo = document.querySelector('#remoteVideo');
-// remoteVideo.srcObject = remoteStream;
 
 playVideoFromCamera();
 
