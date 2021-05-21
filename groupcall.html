@@ -15,6 +15,41 @@ My Name <input type="text" id="sender" name="sender">
 </div>
 <script>
 
+function createPeerConnection(id, remoteStream){
+    var peerConnection = new RTCPeerConnection(configuration);
+    peerConnection.onicecandidate = (evt) => {
+        console.log(evt);
+        console.log("onicecandidate");
+    }
+    peerConnection.addEventListener('icecandidate', event => {
+        console.log("Helo");
+        console.log(event);
+        if (event.candidate) {
+            sendMsg(event.candidate, MSG_TYPES.NEW_ICE_CANDIDATE, id);
+        }
+    });
+    localStream.getTracks().forEach(track => {
+        peerConnection.addTrack(track, localStream);
+    });
+    console.log("peerConnection", peerConnection);
+    var remoteStream = new MediaStream();
+    console.log("remoteStream");
+    console.log(remoteStream);
+    createVideoElement(remoteStream);
+    peerConnection.addEventListener('track', async (event) => {
+        console.log("Received track");
+        console.log(event);
+        console.log(remoteStream);
+        remoteStream.addTrack(event.track, remoteStream);
+    });
+    peerConnection.addEventListener('iceconnectionstatechange',  event => {
+        console.log('ice state change');
+        console.log(event);
+    });
+    peerConnections[id] = peerConnection;
+}
+
+
 function createVideoElement(stream){
     var videoElement = document.createElement("video");
     videoElement.autoplay = true;
@@ -78,12 +113,13 @@ var peerConnections = {};
 
 
 async function call(id){
-    var peerConnection = new RTCPeerConnection(configuration);
-    peerConnections[id] = peerConnection;
-    console.log("peerConnection", peerConnection);
-    const offer = await peerConnection.createOffer({ offerToReceiveAudio : true,
+    //var peerConnection = new RTCPeerConnection(configuration);
+    createPeerConnection(id);
+    //peerConnections[id] = peerConnection;
+    console.log("peerConnection", peerConnections[id]);
+    const offer = await peerConnections[id].createOffer({ offerToReceiveAudio : true,
         offerToReceiveVideo : true});
-    await peerConnection.setLocalDescription(offer);
+    await peerConnections[id].setLocalDescription(offer);
     //signalingChannel.send({'offer': offer});
     console.log("Calling "+ id);
     sendMsg(offer, MSG_TYPES.CALL_OFFER, id);
@@ -128,32 +164,13 @@ async function handleCallOfferMsg(payload){
     var msg = payload.sender + "(" + payload.type + ")" + " : " + payload.msg;
     console.log("Received msg : " + msg);
     document.getElementById('msgs').innerHTML = document.getElementById('msgs').innerHTML + "<br>" + msg;
-    var peerConnection = new RTCPeerConnection(configuration);
-    peerConnections[payload.sender] = peerConnection;
-    console.log("peerConnection", peerConnection);
-    peerConnection.setRemoteDescription(new RTCSessionDescription(payload.msg));
-    peerConnection.onicecandidate = (evt) => {
-        console.log(evt);
-        console.log("onicecandidate");
-    }
-    peerConnection.addEventListener('icecandidate', event => {
-        console.log("Helo");
-        console.log(event);
-        if (event.candidate) {
-            sendMsg(event.candidate, MSG_TYPES.NEW_ICE_CANDIDATE, payload.sender);
-        }
-    });
-    localStream.getTracks().forEach(track => {
-        peerConnection.addTrack(track, localStream);
-    });
-    peerConnection.addEventListener('track', async (event) => {
-        console.log("Received track");
-        console.log(event);
-        console.log(remoteStream);
-        remoteStream.addTrack(event.track, remoteStream);
-    });
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
+    createPeerConnection(payload.sender);
+    peerConnections[payload.sender];
+    console.log("peerConnection", peerConnections[payload.sender]);
+
+    peerConnections[payload.sender].setRemoteDescription(new RTCSessionDescription(payload.msg));
+    const answer = await peerConnections[payload.sender].createAnswer();
+    await peerConnections[payload.sender].setLocalDescription(answer);
     console.log("Got call from " + payload.sender);
     sendMsg(answer, MSG_TYPES.CALL_ANSWER, payload.sender);
 }
@@ -162,25 +179,25 @@ async function handleCallAnswerMsg(payload){
     console.log("Received msg : " + msg);
     document.getElementById('msgs').innerHTML = document.getElementById('msgs').innerHTML + "<br>" + msg;
     const remoteDesc = new RTCSessionDescription(payload.msg);
-    var peerConnection = peerConnections[payload.sender];
-    console.log("peerConnection", peerConnection);
-    await peerConnection.setRemoteDescription(remoteDesc);
+    //var peerConnection = peerConnections[payload.sender];
+    console.log("peerConnection", peerConnections[payload.sender]);
+    await peerConnections[payload.sender].setRemoteDescription(remoteDesc);
 }
 
 async function handleNewIceCandidateMsg(payload){
     var msg = payload.sender + "(" + payload.type + ")" + " : " + payload.msg;
     console.log("Received msg : " + msg);
     document.getElementById('msgs').innerHTML = document.getElementById('msgs').innerHTML + "<br>" + msg;
-    var peerConnection = peerConnections[payload.sender];
-    console.log("peerConnection", peerConnection);
-    await peerConnection.addIceCandidate(payload.msg);
+    //var peerConnection = peerConnections[payload.sender];
+    console.log("peerConnection", peerConnections[payload.sender]);
+    await peerConnections[payload.sender].addIceCandidate(payload.msg);
 }
 
 async function handleNewCallerMsg(payload){
     var msg = payload.sender + "(" + payload.type + ")" + " : " + payload.msg;
     console.log("Received msg : " + msg);
     document.getElementById('msgs').innerHTML = document.getElementById('msgs').innerHTML + "<br>" + msg;
-    await addNewUser(payload.msg);
+    await call(payload.msg);
 }
 
 
@@ -229,44 +246,12 @@ function getMsg(){
     });
 }
 
-setInterval(getMsg, 10000);
+setInterval(getMsg, 1000);
 
 // const remoteVideo = document.querySelector('#remoteVideo');
 // remoteVideo.srcObject = remoteStream;
 
 playVideoFromCamera();
-
-
-async function addNewUser(id){
-    var peerConnection = new RTCPeerConnection(configuration);
-    peerConnections[id] = peerConnection;
-    console.log("peerConnection", peerConnection);
-    var remoteStream = new MediaStream();
-    console.log("remoteStream");
-    console.log(remoteStream);
-    createVideoElement(remoteStream);
-    await call(id);
-    peerConnection.onicecandidate = (evt) => {
-        console.log(evt);
-        console.log("onicecandidate");
-    }
-    peerConnection.addEventListener('icecandidate', event => {
-        console.log("Helo");
-        console.log(event);
-        if (event.candidate) {
-            sendMsg(event.candidate, MSG_TYPES.NEW_ICE_CANDIDATE, id);
-        }
-    });
-    localStream.getTracks().forEach(track => {
-        peerConnection.addTrack(track, localStream);
-    });
-    peerConnection.addEventListener('track', async (event) => {
-        console.log("Received track");
-        console.log(event);
-        console.log(remoteStream);
-        remoteStream.addTrack(event.track, remoteStream);
-    });
-}
 
 function getCookie(cname) {
   var name = cname + "=";
